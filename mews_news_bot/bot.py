@@ -3,7 +3,7 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-from translate import Translator
+from deep_translator import GoogleTranslator
 import sys
 import time
 import random
@@ -60,7 +60,7 @@ def get_unique_news():
                 print("🔄 इसे शानदार हिंदी में ट्रांसलेट कर रहा हूँ...")
                 
                 try:
-                    translator = Translator(to_lang='hi')
+                    translator = GoogleTranslator(source='en', target='hi')
                     hi_title = translator.translate(eng_title)
                     hi_summary = translator.translate(eng_summary)
                     
