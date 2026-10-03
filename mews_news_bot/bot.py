@@ -14,7 +14,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 # 🛑 Settings
 # ==========================================
 FB_PAGE_ID = "1330940560103897" 
-FB_TOKEN = "EAATquicTHUMBSuJxsZA6iFxkUOLQHvjd5cYAyItoSncJyO2bSpmHBs0dTF2rcSShyllQRRnbssC1AQNyxoIc5euTW3VZCNA8b63xVkL2YxPtNUK2is4pQFMuhf6gxZAsN6u5mkZBb3BrKZCZBeZB60PRnqfiinoGgVA62riIHrbGIPgnd8wuEMD8JqYsP0wjZB5klZAXb2tGAngwHLqsJ6HKu4WNIrVKGjMM43ABVuQXY"
+FB_TOKEN = "EAATquicTHUMBSrIA2GYyZBMEZAAiRWIOaMbmoNEQWuZBJ7ZBPWo7KctMX5KUCy3Iw2z9JZBUsJYwIbzH7fxFcdpSos0UOf7GV9BNdwuLFX5YzFBexNZC5xMVX5SqOChHa9ofF3uziDSZCujvtX0wifbNjjOIZCSsZCIZCrGwiFITrpnj8Lkibv2vomCpzcUXOC1PZAWAAkRsEkS"
 
 # यहाँ मैंने क्रिकेट, फन (Entertainment), पॉलिटिक्स और ट्रेंडिंग न्यूज़ के अलग-अलग RSS डाल दिए हैं
 RSS_FEEDS = [
