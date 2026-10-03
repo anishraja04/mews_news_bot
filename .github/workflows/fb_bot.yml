@@ -2,7 +2,7 @@ name: Mews News Auto Poster
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # हर 5 मिनट में चलेगा
+    - cron: '*/10 * * * *' # हर 10 मिनट में चलेगा
   workflow_dispatch: # मैन्युअली चलाने का बटन भी देगा
 
 jobs:
