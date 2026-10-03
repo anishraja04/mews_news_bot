@@ -3,7 +3,7 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-from deep_translator import GoogleTranslator
+from googletrans import Translator
 import sys
 import time
 import random
@@ -47,6 +47,8 @@ def get_unique_news():
     # Randomly किसी एक केटेगरी से न्यूज़ उठाएंगे (Cricket, Fun, Politics)
     random.shuffle(RSS_FEEDS)
     
+    translator = Translator()
+    
     for rss_url in RSS_FEEDS:
         print(f"📰 इस केटेगरी से न्यूज़ ढूँढ रहा हूँ: {rss_url}")
         feed = feedparser.parse(rss_url)
@@ -60,9 +62,8 @@ def get_unique_news():
                 print("🔄 इसे शानदार हिंदी में ट्रांसलेट कर रहा हूँ...")
                 
                 try:
-                    translator = GoogleTranslator(source='en', target='hi')
-                    hi_title = translator.translate(eng_title)
-                    hi_summary = translator.translate(eng_summary)
+                    hi_title = translator.translate(eng_title, dest='hi').text
+                    hi_summary = translator.translate(eng_summary, dest='hi').text
                     
                     # Extract the real news image URL from the RSS feed enclosure
                     img_url = ""
