@@ -1,0 +1,39 @@
+name: Mews News Auto Poster
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # हर 5 मिनट में चलेगा
+  workflow_dispatch: # मैन्युअली चलाने का बटन भी देगा
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: |
+          cd mews_news_bot
+          python -m pip install --upgrade pip
+          pip install requests feedparser beautifulsoup4 playwright translate
+          playwright install chromium
+          
+      - name: Run FB Bot
+        run: |
+          cd mews_news_bot
+          python bot.py
+          
+      - name: Commit and Push Posted News Record
+        run: |
+          git config --global user.name "Mews News Bot"
+          git config --global user.email "bot@mewsnews.local"
+          git add mews_news_bot/posted_news.txt
+          git commit -m "Auto-updated posted news record" || echo "No new posts to commit"
+          git push origin main || git push origin master
