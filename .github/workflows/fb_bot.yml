@@ -2,8 +2,10 @@ name: Mews News Auto Poster
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # हर 10 मिनट में चलेगा
-  workflow_dispatch: # मैन्युअली चलाने का बटन भी देगा
+    - cron: '*/10 * * * *' # GitHub's lazy timer
+  workflow_dispatch:
+  repository_dispatch:
+    types: [run-bot] # External trigger
 
 jobs:
   run-bot:
