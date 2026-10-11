@@ -375,9 +375,13 @@ def create_reel_video(news):
         '-movflags', '+faststart',
         video_file
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print(f"✅ रियल रील वीडियो तैयार है: {video_file} ({os.path.getsize(video_file)} bytes)")
-    return video_file
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"✅ रियल रील वीडियो तैयार है: {video_file} ({os.path.getsize(video_file)} bytes)")
+        return video_file
+    except Exception as e:
+        print(f"❌ FFmpeg रील रेंडर करने में एरर आया: {e}")
+        return None
 
 def build_full_caption(news):
     """कैप्शन में पूरी खबर विस्तार से"""
@@ -485,11 +489,13 @@ def main():
                     
         if news_item:
             video_path = create_reel_video(news_item)
-            if post_reel_to_facebook(video_path, news_item):
+            if video_path and post_reel_to_facebook(video_path, news_item):
                 save_posted_news(news_item['link'])
                 state["last_video_time"] = int(now)
                 save_bot_state(state)
                 print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+            elif not video_path:
+                print("⚠️ रील वीडियो तैयार नहीं हो सका, अगली बार पुनः प्रयास करेंगे।")
         else:
             print("🤷‍♂️ रील के लिए कोई वैध असली-फोटो वाली खबर नहीं मिली।")
             
