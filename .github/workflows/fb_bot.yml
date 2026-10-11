@@ -2,10 +2,10 @@ name: Mews News Auto Poster
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # Fallback cron
+    - cron: '*/5 * * * *' # हर 5 मिनट में चेक करेगा
   workflow_dispatch:
   repository_dispatch:
-    types: [run-bot] # External trigger from cron-job.org
+    types: [run-bot] # cron-job.org trigger
 
 jobs:
   run-bot:

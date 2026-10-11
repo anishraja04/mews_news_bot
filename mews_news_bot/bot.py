@@ -18,14 +18,32 @@ sys.stdout.reconfigure(encoding='utf-8')
 FB_PAGE_ID = "1330940560103897" 
 FB_TOKEN = "EAATquicTHUMBSrIA2GYyZBMEZAAiRWIOaMbmoNEQWuZBJ7ZBPWo7KctMX5KUCy3Iw2z9JZBUsJYwIbzH7fxFcdpSos0UOf7GV9BNdwuLFX5YzFBexNZC5xMVX5SqOChHa9ofF3uziDSZCujvtX0wifbNjjOIZCSsZCIZCrGwiFITrpnj8Lkibv2vomCpzcUXOC1PZAWAAkRsEkS"
 
-RSS_FEEDS = [
-    "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms",     # Cricket (खेल)
-    "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms",   # Entertainment (मनोरंजन/फन)
-    "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms",  # India/Politics (राजनीति)
-    "https://timesofindia.indiatimes.com/rssfeeds/3908999.cms"       # Trending/Unique (अजब-गजब)
+# राजनीति (Politics) और देश की बड़ी खबरों पर मुख्य फोकस
+POLITICAL_FEEDS = [
+    "http://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms",  # India / National Politics (राजनीति)
+    "http://timesofindia.indiatimes.com/rssfeedstopstories.cms",    # Top Headlines (प्रमुख राजनीतिक व राष्ट्रीय खबरें)
+    "http://timesofindia.indiatimes.com/rssfeeds/-2128839596.cms",  # Delhi (संसद, सरकार, चुनाव और राजनीति)
+    "https://feeds.feedburner.com/ndtvnews-india-news"              # NDTV India Politics
 ]
 
-INTERVAL_SECONDS = 1800  # 30 मिनट (30 * 60)
+SECONDARY_FEEDS = [
+    "https://timesofindia.indiatimes.com/rssfeeds/54829575.cms",    # खेल (Cricket)
+    "https://timesofindia.indiatimes.com/rssfeeds/3908999.cms"       # ट्रेंडिंग (Viral)
+]
+
+# राजनीतिक कीवर्ड्स जिनके आधार पर स्कोरिंग होगी (High Priority)
+POLITICAL_KEYWORDS = [
+    'modi', 'bjp', 'congress', 'rahul', 'gandhi', 'election', 'minister', 'govt', 'court',
+    'supreme court', 'cji', 'mp', 'mla', 'cm', 'yadav', 'kejriwal', 'aap', 'parliament',
+    'assembly', 'lok sabha', 'rajya sabha', 'nda', 'india bloc', 'police', 'bill', 'party',
+    'leader', 'vote', 'owaisi', 'chief minister', 'prime minister', 'cabinet', 'governor',
+    'rajya', 'pradhan mantri', 'delhi', 'center', 'centre', 'bengal', 'up', 'bihar',
+    'akhilesh', 'mamata', 'shah', 'amit shah', 'dussehra', 'rally', 'protest', 'bsp', 'sp'
+]
+
+VIDEO_INTERVAL_SECONDS = 900   # 15 मिनट (15 * 60)
+IMAGE_INTERVAL_SECONDS = 1800  # 30 मिनट (30 * 60)
+
 POSTED_FILE = os.path.join(os.path.dirname(__file__), "posted_news.txt")
 STATE_FILE = os.path.join(os.path.dirname(__file__), "bot_state.json")
 # ==========================================
@@ -47,8 +65,7 @@ def load_bot_state():
                 return json.load(f)
         except Exception:
             pass
-    # डिफ़ॉल्ट: पहली पोस्ट इमेज होगी
-    return {"last_post_time": 0, "last_post_type": "reel"}
+    return {"last_video_time": 0, "last_image_time": 0}
 
 def save_bot_state(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
@@ -61,7 +78,7 @@ def clean_html(raw_html):
 def translate_to_hindi(text):
     if not text:
         return ""
-    # 1. Google Translate direct RPC (Lightning fast & 100% reliable)
+    # 1. Google Translate direct RPC (Super fast & reliable)
     try:
         url = "https://translate.googleapis.com/translate_a/single"
         params = {"client": "gtx", "sl": "en", "tl": "hi", "dt": "t", "q": text}
@@ -116,7 +133,7 @@ def extract_article_details(link):
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
             
-            # 1. Real HD News Photo from og:image
+            # 1. Real HD Photo from og:image
             og_img = soup.find('meta', {'property': 'og:image'})
             if og_img and og_img.get('content') and 'http' in og_img.get('content', ''):
                 img_url = og_img['content'].strip()
@@ -134,60 +151,90 @@ def extract_article_details(link):
                 except Exception:
                     continue
     except Exception as e:
-        print(f"⚠️ Article details extract notice: {e}")
+        print(f"⚠️ Article extract notice: {e}")
         
     return body, img_url
 
-def get_unique_news():
+def score_political_entry(entry):
+    """राजनीतिक कीवर्ड्स के आधार पर प्राथमिकता स्कोर तय करना"""
+    title_lower = entry.title.lower()
+    desc_lower = getattr(entry, 'description', '').lower()
+    score = 0
+    for kw in POLITICAL_KEYWORDS:
+        if kw in title_lower:
+            score += 3
+        if kw in desc_lower:
+            score += 1
+    return score
+
+def get_ranked_news_candidates(already_selected_links=None):
+    """राजनीतिक खबरों को प्राथमिकता देकर क्रमबद्ध लिस्ट तैयार करना"""
     posted = load_posted_news()
-    random.shuffle(RSS_FEEDS)
-    
-    for rss_url in RSS_FEEDS:
-        print(f"📰 RSS फ़ीड चेक कर रहा हूँ: {rss_url}")
-        feed = feedparser.parse(rss_url)
+    if already_selected_links:
+        posted.update(already_selected_links)
         
-        for entry in feed.entries:
-            if entry.link not in posted:
-                eng_title = entry.title
-                eng_summary = clean_html(entry.description)
-                
-                print(f"🇬🇧 English Headline: {eng_title}")
-                print("🔄 इसे शानदार हिंदी में ट्रांसलेट कर रहा हूँ...")
-                
-                try:
-                    hi_title = translate_to_hindi(eng_title)
-                    hi_summary = translate_to_hindi(eng_summary)
-                    
-                    # 1. पूरी विस्तृत न्यूज़ और रियल HD फोटो निकालना
-                    full_eng_text, real_photo = extract_article_details(entry.link)
-                    
-                    if full_eng_text:
-                        print("📖 पूरी खबर (Full Article) मिल गई! हिंदी में ट्रांसलेट कर रहा हूँ...")
-                        hi_full_story = translate_long_article(full_eng_text)
-                    else:
-                        hi_full_story = hi_summary
-                        
-                    # रियल न्यूज़ इमेज URL सेट करना (og:image को प्राथमिकता)
-                    img_url = real_photo
-                    if not img_url and getattr(entry, 'enclosures', None) and len(entry.enclosures) > 0:
-                        img_url = entry.enclosures[0].get('href', '')
-                        
-                    print(f"📸 रियल फोटो URL: {img_url[:60]}..." if img_url else "📸 डिफ़ॉल्ट बैकग्राउंड उपयोग होगा")
-                    print(f"🇮🇳 Hindi Headline: {hi_title}")
-                    
-                    return {
-                        "title": hi_title,
-                        "summary": hi_summary,
-                        "full_story": hi_full_story,
-                        "link": entry.link,
-                        "img_url": img_url
-                    }
-                except Exception as e:
-                    print(f"❌ ट्रांसलेट करने में एरर आया: {e}, दूसरी न्यूज़ देखते हैं...")
-                    continue
-                    
-    print("❌ अभी कोई नई यूनिक न्यूज़ नहीं मिली!")
-    return None
+    candidates = []
+    
+    # 1. पहले राजनीतिक फ़ीड्स से खबरें एकत्र करना
+    for rss_url in POLITICAL_FEEDS:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries:
+                if entry.link not in posted:
+                    score = score_political_entry(entry) + 5 # राजनीतिक फ़ीड्स को +5 बोनस
+                    candidates.append((score, entry))
+        except Exception:
+            pass
+            
+    # 2. सेकंडरी फ़ीड्स से खबरें (बैकअप के लिए)
+    for rss_url in SECONDARY_FEEDS:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries:
+                if entry.link not in posted:
+                    score = score_political_entry(entry)
+                    candidates.append((score, entry))
+        except Exception:
+            pass
+            
+    # स्कोर के आधार पर घटते क्रम में सॉर्ट करना (सबसे बड़ी राजनीतिक खबर सबसे ऊपर)
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return [entry for score, entry in candidates]
+
+def prepare_news_item(entry):
+    """न्यूज़ को प्रोसेस करके हिंदी और डिटेल्स तैयार करना"""
+    eng_title = entry.title
+    eng_summary = clean_html(entry.description)
+    
+    print(f"🇬🇧 English Headline: {eng_title}")
+    print("🔄 इसे शानदार हिंदी में ट्रांसलेट कर रहा हूँ...")
+    
+    hi_title = translate_to_hindi(eng_title)
+    hi_summary = translate_to_hindi(eng_summary)
+    
+    # पूरी खबर और असली HD फोटो निकालना
+    full_eng_text, real_photo = extract_article_details(entry.link)
+    
+    if full_eng_text:
+        print("📖 पूरी खबर (Full Article) मिल गई! हिंदी में ट्रांसलेट कर रहा हूँ...")
+        hi_full_story = translate_long_article(full_eng_text)
+    else:
+        hi_full_story = hi_summary
+        
+    img_url = real_photo
+    if not img_url and getattr(entry, 'enclosures', None) and len(entry.enclosures) > 0:
+        img_url = entry.enclosures[0].get('href', '')
+        
+    print(f"📸 रियल फोटो: {img_url[:60]}..." if img_url else "📸 डिफ़ॉल्ट इमेज का उपयोग होगा")
+    print(f"🇮🇳 Hindi Headline: {hi_title}")
+    
+    return {
+        "title": hi_title,
+        "summary": hi_summary,
+        "full_story": hi_full_story,
+        "link": entry.link,
+        "img_url": img_url
+    }
 
 def create_image_post(news):
     print("🎨 [Photo Post] 800x1000 इन्फोग्राफिक इमेज बना रहा हूँ...")
@@ -199,10 +246,8 @@ def create_image_post(news):
     
     html_content = html_content.replace("यहाँ न्यूज़ की बड़ी हेडलाइन आएगी", news['title'])
     
-    if news.get('img_url'):
-        html_content = html_content.replace("यहाँ_इमेज_आएगी", news['img_url'])
-    else:
-        html_content = html_content.replace("यहाँ_इमेज_आएगी", "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200")
+    photo_url = news.get('img_url') or "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200"
+    html_content = html_content.replace("यहाँ_इमेज_आएगी", photo_url)
         
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -215,11 +260,10 @@ def create_image_post(news):
     return img_file
 
 def build_anchor_script(news):
-    """AI एंकर के लिए पूरा रियलिस्टिक न्यूज़ बुलेटिन स्क्रिप्ट (सिर्फ टाइटल नहीं)"""
+    """AI एंकर के लिए पूरा रियलिस्टिक न्यूज़ बुलेटिन स्क्रिप्ट"""
     title = news['title'].strip()
     full_story = news.get('full_story', news.get('summary', '')).strip()
     
-    # फुल स्टोरी से 1-2 महत्वपूर्ण और मुख्य वाक्य निकालना
     clean_sentences = [
         s.strip() for s in full_story.replace('\n', ' ').split('।') 
         if len(s.strip()) > 15
@@ -237,8 +281,7 @@ def build_anchor_script(news):
 def generate_voiceover(text, audio_path):
     import edge_tts
     async def _speak():
-        # hi-IN-MadhurNeural: बहुत ही स्पष्ट, गहरा और ह्यूमन-लाइक न्यूज़ एंकर वॉइस
-        # rate="+45%": एग्जैक्ट 1.5x फास्ट और एनर्जेटिक स्पीड (जैसा यूट्यूब/इंस्टा रील्स में होता है)
+        # hi-IN-MadhurNeural: 1.5x फास्ट और एनर्जेटिक स्पीड
         communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+45%")
         await communicate.save(audio_path)
     asyncio.run(_speak())
@@ -252,7 +295,7 @@ def get_audio_duration(audio_path):
         return 12.0
 
 def create_reel_video(news):
-    print("🎬 [Reel Post] 9:16 वर्टिकल रील, रियल फुटेज/फोटो मोशन और 1.5x AI वॉइसओवर बना रहा हूँ...")
+    print("🎬 [Reel Post] 9:16 वर्टिकल रील, रियल फोटो मोशन और 1.5x AI वॉइसओवर बना रहा हूँ...")
     html_file = os.path.join(os.path.dirname(__file__), "template_reel.html")
     frame_img_file = os.path.join(os.path.dirname(__file__), "reel_frame.png")
     audio_file = os.path.join(os.path.dirname(__file__), "reel_voice.mp3")
@@ -264,7 +307,6 @@ def create_reel_video(news):
     html_content = html_content.replace("यहाँ न्यूज़ की बड़ी हेडलाइन आएगी", news['title'])
     html_content = html_content.replace("यहाँ_शॉर्ट_समरी_आएगी", news['summary'])
     
-    # असली रियल फोटो लगाना
     photo_url = news.get('img_url') or "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200"
     html_content = html_content.replace("यहाँ_इमेज_आएगी", photo_url)
         
@@ -278,7 +320,7 @@ def create_reel_video(news):
         
     # 2. पूरा न्यूज़ एंकर स्क्रिप्ट और 1.5x फास्ट वॉइसओवर
     voice_script = build_anchor_script(news)
-    print(f"🎙️ AI न्यूज़ एंकर वॉइसओवर (1.5x स्पीड) जनरेट कर रहा हूँ: '{voice_script[:75]}...'")
+    print(f"🎙️ AI न्यूज़ एंकर वॉइसओवर (1.5x स्पीड): '{voice_script[:75]}...'")
     generate_voiceover(voice_script, audio_file)
     
     # 3. FFmpeg से स्मूथ मोशन/ज़ूम (Ken Burns Real Camera Push) रेंडर करना
@@ -312,7 +354,7 @@ def build_full_caption(news):
 {news['full_story']}
 
 📌 ताज़ा और निष्पक्ष खबरों के लिए Mews News को फॉलो करें!
-#MewsNews #HindiNews #BreakingNews #Trending #ViralNews #India"""
+#MewsNews #HindiNews #BreakingNews #Trending #Politics #PoliticalNews #India"""
 
 def post_photo_to_facebook(image_path, news):
     print("🚀 फेसबुक पर फोटो पोस्ट कर रहा हूँ...")
@@ -360,45 +402,79 @@ def post_reel_to_facebook(video_path, news):
 
 def main():
     print("🚀 Mews News Auto Poster शुरू हो रहा है...")
-    force_run = "--force" in sys.argv or os.environ.get("FORCE_RUN") == "true"
+    force_all = "--force" in sys.argv or os.environ.get("FORCE_RUN") == "true"
+    force_video = "--force-video" in sys.argv
+    force_image = "--force-image" in sys.argv
     
     state = load_bot_state()
     now = time.time()
-    last_post_time = state.get("last_post_time", 0)
-    last_post_type = state.get("last_post_type", "image") # रील टेस्ट के लिए डिफ़ॉल्ट इमेज से शुरू
-    elapsed = now - last_post_time
+    last_video_time = state.get("last_video_time", 0)
+    last_image_time = state.get("last_image_time", 0)
     
-    if not force_run and elapsed < INTERVAL_SECONDS:
-        remaining_min = int((INTERVAL_SECONDS - elapsed) / 60)
-        print(f"⏳ अभी 30 मिनट नहीं हुए हैं (पिछली पोस्ट के बाद {int(elapsed/60)} मिनट बीते हैं)।")
-        print(f"⏳ अगली पोस्ट {remaining_min} मिनट बाद होगी। बोट अभी रेस्ट कर रहा है।")
+    elapsed_video = now - last_video_time
+    elapsed_image = now - last_image_time
+    
+    # टाइमर चेक: वीडियो हर 15 मिनट, इमेज हर 30 मिनट
+    should_post_video = force_all or force_video or (elapsed_video >= VIDEO_INTERVAL_SECONDS)
+    should_post_image = force_all or force_image or (elapsed_image >= IMAGE_INTERVAL_SECONDS)
+    
+    print(f"⏱️ स्थिति: वीडियो के बाद {int(elapsed_video/60)}m बीते (लक्ष्य: 15m) -> {'चलना चाहिए' if should_post_video else 'इंतज़ार'}")
+    print(f"⏱️ स्थिति: फोटो के बाद {int(elapsed_image/60)}m बीते (लक्ष्य: 30m) -> {'चलना चाहिए' if should_post_image else 'इंतज़ार'}")
+    
+    if not should_post_video and not should_post_image:
+        rem_v = int((VIDEO_INTERVAL_SECONDS - elapsed_video) / 60)
+        rem_i = int((IMAGE_INTERVAL_SECONDS - elapsed_image) / 60)
+        print(f"⏳ अभी दोनों का समय नहीं हुआ है (अगली रील {rem_v}m बाद, अगला फोटो {rem_i}m बाद)।")
+        print("💤 बोट अभी विश्राम कर रहा है।")
         return
         
-    # अल्टरनेटिंग साइकिल: अगर पिछली बार इमेज थी तो अब रील, अगर रील थी तो अब इमेज
-    next_type = "reel" if last_post_type == "image" else "image"
-    print(f"🎯 इस बार की पोस्ट का प्रकार: {next_type.upper()} (पिछली पोस्ट थी: {last_post_type.upper()})")
-    
-    news = get_unique_news()
-    if not news:
+    candidates = get_ranked_news_candidates()
+    if not candidates:
         print("🤷‍♂️ कोई नई न्यूज़ नहीं मिली।")
         return
         
-    success = False
-    if next_type == "image":
-        img_path = create_image_post(news)
-        success = post_photo_to_facebook(img_path, news)
-    else:
-        video_path = create_reel_video(news)
-        success = post_reel_to_facebook(video_path, news)
+    used_links = set()
+    
+    # 1. 🎬 अगर 15 मिनट हो गए हैं -> Video (Reel) पोस्ट करें
+    if should_post_video:
+        print("\n===============================")
+        print("🎬 15 MIN REEL POST TRIGGERED")
+        print("===============================")
+        video_entry = candidates[0]
+        used_links.add(video_entry.link)
+        news_item = prepare_news_item(video_entry)
         
-    if success:
-        save_posted_news(news['link'])
-        state["last_post_time"] = int(now)
-        state["last_post_type"] = next_type
-        save_bot_state(state)
-        print(f"🎉 सक्सेस! {next_type.upper()} सफलतापूर्वक पोस्ट हो गया। स्टेट सेव हो गई।")
-    else:
-        print("❌ पोस्ट फेल हो गई।")
+        video_path = create_reel_video(news_item)
+        if post_reel_to_facebook(video_path, news_item):
+            save_posted_news(news_item['link'])
+            state["last_video_time"] = int(now)
+            save_bot_state(state)
+            print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+            
+    # 2. 🎨 अगर 30 मिनट हो गए हैं -> Image (Photo Post) पोस्ट करें
+    if should_post_image:
+        print("\n===============================")
+        print("🎨 30 MIN PHOTO POST TRIGGERED")
+        print("===============================")
+        
+        # अगर वीडियो अभी-अभी पोस्ट हुआ है तो अगली ताज़ा खबर लें
+        image_candidates = [c for c in candidates if c.link not in used_links]
+        if not image_candidates:
+            print("🤷‍♂️ फोटो के लिए नई न्यूज़ नहीं मिली।")
+            return
+            
+        if should_post_video:
+            time.sleep(5)  # 5 सेकंड का अंतर ताकि दोनों पोस्ट एक ही सेकंड में न क्लैश हों
+            
+        image_entry = image_candidates[0]
+        news_item = prepare_news_item(image_entry)
+        
+        img_path = create_image_post(news_item)
+        if post_photo_to_facebook(img_path, news_item):
+            save_posted_news(news_item['link'])
+            state["last_image_time"] = int(now)
+            save_bot_state(state)
+            print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
 
 if __name__ == "__main__":
     main()
