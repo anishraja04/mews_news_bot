@@ -2,8 +2,8 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>Mews News Reel Template</title>
-    <link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi&family=Poppins:wght@700;900&display=swap" rel="stylesheet">
+    <title>Mews News Live Reel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&family=Montserrat:wght@800;900&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -14,7 +14,7 @@
         body {
             width: 720px;
             height: 1280px;
-            background-color: #0b0f19;
+            background-color: #030712;
             font-family: 'Tiro Devanagari Hindi', serif;
             display: flex;
             flex-direction: column;
@@ -22,7 +22,7 @@
             position: relative;
         }
 
-        /* Full Background Image with Blur & Dark Overlay */
+        /* Ambient Dynamic Background */
         .bg-layer {
             position: absolute;
             top: 0;
@@ -32,8 +32,8 @@
             background-image: url('यहाँ_इमेज_आएगी');
             background-size: cover;
             background-position: center;
-            filter: blur(25px) brightness(0.25);
-            transform: scale(1.1);
+            filter: blur(35px) brightness(0.2);
+            transform: scale(1.15);
             z-index: 1;
         }
 
@@ -45,15 +45,20 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 40px 35px 50px 35px;
+            padding: 35px 30px 25px 30px;
         }
 
-        /* Top Header */
+        /* Top TV News Header */
         .top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             width: 100%;
+            background: rgba(15, 23, 42, 0.75);
+            padding: 12px 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
         }
 
         .logo-box {
@@ -63,111 +68,173 @@
         }
 
         .logo-badge {
-            background: #e60000;
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
             color: #ffffff;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Montserrat', sans-serif;
             font-weight: 900;
-            font-size: 26px;
-            padding: 6px 18px;
+            font-size: 24px;
+            padding: 5px 16px;
             border-radius: 8px;
-            letter-spacing: 1.5px;
-            box-shadow: 0 4px 15px rgba(230, 0, 0, 0.5);
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
         }
 
         .channel-name {
             color: #ffffff;
-            font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            font-size: 24px;
-            letter-spacing: 1px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 800;
+            font-size: 22px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
         }
 
         .live-tag {
-            background: rgba(255, 255, 255, 0.15);
-            color: #ffcc00;
-            border: 1px solid #ffcc00;
+            background: rgba(220, 38, 38, 0.25);
+            color: #f87171;
+            border: 1.5px solid #ef4444;
             font-family: 'Poppins', sans-serif;
-            font-weight: 700;
-            font-size: 15px;
+            font-weight: 800;
+            font-size: 14px;
             padding: 6px 14px;
             border-radius: 20px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            letter-spacing: 0.5px;
         }
 
         .live-dot {
             width: 10px;
             height: 10px;
-            background: #ffcc00;
+            background: #ef4444;
             border-radius: 50%;
-            box-shadow: 0 0 8px #ffcc00;
+            box-shadow: 0 0 10px #ef4444;
         }
 
-        /* Main Visual Media Card */
-        .media-container {
+        /* Center Media Stage */
+        .media-stage {
             width: 100%;
-            height: 520px;
-            border-radius: 20px;
+            height: 560px;
+            border-radius: 22px;
             overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
-            border: 2px solid rgba(255, 255, 255, 0.12);
             position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.15);
         }
 
-        .media-container img {
+        .media-stage img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
+        }
+
+        .media-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(180deg, transparent 0%, rgba(3, 7, 18, 0.9) 100%);
+        }
+
+        .category-pill {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffd000;
+            border: 1px solid rgba(255, 208, 0, 0.5);
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 6px 16px;
+            border-radius: 30px;
+            backdrop-filter: blur(8px);
+            text-transform: uppercase;
         }
 
         /* Headline & Info Card */
-        .content-card {
-            background: linear-gradient(180deg, rgba(17, 24, 39, 0.85) 0%, rgba(10, 15, 26, 0.98) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        .news-card {
+            background: linear-gradient(180deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.98) 100%);
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
             border-radius: 22px;
-            padding: 26px 28px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            padding: 24px 26px;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            margin-top: 10px;
+        }
+
+        .breaking-badge {
+            display: inline-block;
+            background: #ef4444;
+            color: #ffffff;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 800;
+            font-size: 13px;
+            padding: 3px 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
 
         .headline {
             color: #ffffff;
-            font-size: 32px;
+            font-size: 33px;
             line-height: 1.35;
             font-weight: 700;
-            margin-bottom: 16px;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            margin-bottom: 14px;
+            text-shadow: 0 3px 12px rgba(0, 0, 0, 0.8);
         }
 
-        .headline span {
+        .headline .highlight {
             color: #ffd000;
         }
 
         .summary-box {
-            color: #e2e8f0;
+            color: #cbd5e1;
             font-size: 21px;
             line-height: 1.45;
-            border-left: 4px solid #e60000;
+            border-left: 4px solid #ef4444;
             padding-left: 14px;
+            background: rgba(0, 0, 0, 0.2);
+            padding-top: 6px;
+            padding-bottom: 6px;
+            border-radius: 0 8px 8px 0;
         }
 
-        /* Footer */
-        .footer-bar {
+        /* Bottom TV Ticker Bar */
+        .bottom-ticker {
+            width: 100%;
+            background: #dc2626;
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-top: 10px;
-            color: #94a3b8;
-            font-size: 17px;
             font-family: 'Poppins', sans-serif;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+            margin-top: 8px;
         }
 
-        .follow-tag {
-            color: #ff3b3b;
-            font-weight: 700;
+        .ticker-brand {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ticker-action {
+            background: #ffffff;
+            color: #dc2626;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 800;
         }
     </style>
 </head>
@@ -175,34 +242,40 @@
     <div class="bg-layer"></div>
 
     <div class="container">
-        <!-- Top Bar -->
+        <!-- Top Live Bar -->
         <div class="top-bar">
             <div class="logo-box">
                 <div class="logo-badge">MEWS</div>
                 <div class="channel-name">NEWS</div>
             </div>
             <div class="live-tag">
-                <div class="live-dot"></div> REEL UPDATE
+                <div class="live-dot"></div> BREAKING REEL
             </div>
         </div>
 
-        <!-- Main Image -->
-        <div class="media-container">
-            <img src="यहाँ_इमेज_आएगी" alt="News Image">
+        <!-- Real Photo Stage -->
+        <div class="media-stage">
+            <div class="category-pill">⚡ ताज़ा खबर</div>
+            <img src="यहाँ_इमेज_आएगी" alt="Real News Photo">
+            <div class="media-overlay"></div>
         </div>
 
-        <!-- Headline & Summary -->
-        <div class="content-card">
-            <h1 class="headline"><span>बड़ी खबर:</span> यहाँ न्यूज़ की बड़ी हेडलाइन आएगी</h1>
+        <!-- News Details Card -->
+        <div class="news-card">
+            <div class="breaking-badge">EXCLUSIVITY</div>
+            <h1 class="headline"><span class="highlight">बड़ी खबर:</span> यहाँ न्यूज़ की बड़ी हेडलाइन आएगी</h1>
             <div class="summary-box">
                 यहाँ_शॉर्ट_समरी_आएगी
             </div>
         </div>
 
-        <!-- Footer -->
-        <div class="footer-bar">
-            <span>fb.com/hindinewsmews</span>
-            <span class="follow-tag">▶ फॉलो करें ताज़ा खबरों के लिए</span>
+        <!-- TV Style Bottom Banner -->
+        <div class="bottom-ticker">
+            <div class="ticker-brand">
+                <span>🔴 MEWS NEWS 24x7</span>
+                <span style="opacity: 0.7;">| fb.com/hindinewsmews</span>
+            </div>
+            <div class="ticker-action">फॉलो करें ▶</div>
         </div>
     </div>
 </body>
