@@ -260,7 +260,7 @@ def create_image_post(news):
     return img_file
 
 def build_anchor_script(news):
-    """AI एंकर के लिए पूरा रियलिस्टिक न्यूज़ बुलेटिन स्क्रिप्ट"""
+    """100% सिर्फ खबर पर फोकस - नो एक्स्ट्रा ग्रीटिंग्स या फिलर्स"""
     title = news['title'].strip()
     full_story = news.get('full_story', news.get('summary', '')).strip()
     
@@ -275,7 +275,8 @@ def build_anchor_script(news):
     else:
         context = news.get('summary', '')
         
-    script = f"नमस्कार, मेव्स न्यूज़ में बड़ी खबर। {title}। {context} ताज़ा और निष्पक्ष खबरों के लिए अभी जुड़े रहें मेव्स न्यूज़ के साथ।"
+    # 'म्यूज़ न्यूज़' (Miyuz Niyuz) सही उच्चारण और सीधा सिर्फ खबर
+    script = f"म्यूज़ न्यूज़ पर बड़ी खबर। {title}। {context}"
     return script
 
 def generate_voiceover(text, audio_path):
