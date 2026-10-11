@@ -2,10 +2,10 @@ name: Mews News Auto Poster
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # GitHub's lazy timer
+    - cron: '*/10 * * * *' # Fallback cron
   workflow_dispatch:
   repository_dispatch:
-    types: [run-bot] # External trigger
+    types: [run-bot] # External trigger from cron-job.org
 
 jobs:
   run-bot:
@@ -13,7 +13,6 @@ jobs:
     permissions:
       contents: write
       
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,7 +26,7 @@ jobs:
         run: |
           cd mews_news_bot
           python -m pip install --upgrade pip
-          pip install requests feedparser beautifulsoup4 playwright "googletrans==4.0.0-rc1"
+          pip install requests feedparser beautifulsoup4 playwright "googletrans==4.0.0-rc1" edge-tts
           playwright install chromium
           
       - name: Run FB Bot
@@ -35,10 +34,10 @@ jobs:
           cd mews_news_bot
           python bot.py
           
-      - name: Commit and Push Posted News Record
+      - name: Commit and Push Posted News & Bot State
         run: |
           git config --global user.name "Mews News Bot"
           git config --global user.email "bot@mewsnews.local"
-          git add mews_news_bot/posted_news.txt
-          git commit -m "Auto-updated posted news record" || echo "No new posts to commit"
+          git add mews_news_bot/posted_news.txt mews_news_bot/bot_state.json
+          git commit -m "Auto-updated posted news record and bot state" || echo "No new posts to commit"
           git push origin main || git push origin master
