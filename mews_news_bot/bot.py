@@ -201,8 +201,49 @@ def get_ranked_news_candidates(already_selected_links=None):
     candidates.sort(key=lambda x: x[0], reverse=True)
     return [entry for score, entry in candidates]
 
+def is_valid_real_image(img_url):
+    """जांचना कि फोटो असली है या सिर्फ TOI का लोगो / डिफ़ॉल्ट प्लेसहोल्डर"""
+    if not img_url or not isinstance(img_url, str):
+        return False
+    
+    img_url_lower = img_url.lower()
+    
+    # TOI Generic Red Logo ID (msid-47529300) और अन्य प्लेसहोल्डर्स
+    BAD_PATTERNS = [
+        '47529300',      # TOI Generic Red Logo
+        'default',
+        'placeholder',
+        'logo',
+        'no-image',
+        'no_image',
+        'blank',
+        'generic',
+        'unsplash.com'
+    ]
+    
+    for bad in BAD_PATTERNS:
+        if bad in img_url_lower:
+            return False
+            
+    if not (img_url.startswith('http://') or img_url.startswith('https://')):
+        return False
+        
+    return True
+
 def prepare_news_item(entry):
-    """न्यूज़ को प्रोसेस करके हिंदी और डिटेल्स तैयार करना"""
+    """न्यूज़ को प्रोसेस करके हिंदी और डिटेल्स तैयार करना (सिर्फ असली फोटो वाली खबरें)"""
+    # 1. पहले असली HD फोटो और पूरी खबर निकालें
+    full_eng_text, real_photo = extract_article_details(entry.link)
+    
+    img_url = real_photo
+    if not img_url and getattr(entry, 'enclosures', None) and len(entry.enclosures) > 0:
+        img_url = entry.enclosures[0].get('href', '')
+        
+    # अगर असली फोटो नहीं है (या TOI का लोगो है) तो इसे पोस्ट नहीं करना है
+    if not is_valid_real_image(img_url):
+        print(f"⚠️ असली फोटो अनुपलब्ध (TOI लोगो या खाली): '{entry.title[:45]}...' -> SKIP")
+        return None
+        
     eng_title = entry.title
     eng_summary = clean_html(entry.description)
     
@@ -212,20 +253,13 @@ def prepare_news_item(entry):
     hi_title = translate_to_hindi(eng_title)
     hi_summary = translate_to_hindi(eng_summary)
     
-    # पूरी खबर और असली HD फोटो निकालना
-    full_eng_text, real_photo = extract_article_details(entry.link)
-    
     if full_eng_text:
         print("📖 पूरी खबर (Full Article) मिल गई! हिंदी में ट्रांसलेट कर रहा हूँ...")
         hi_full_story = translate_long_article(full_eng_text)
     else:
         hi_full_story = hi_summary
         
-    img_url = real_photo
-    if not img_url and getattr(entry, 'enclosures', None) and len(entry.enclosures) > 0:
-        img_url = entry.enclosures[0].get('href', '')
-        
-    print(f"📸 रियल फोटो: {img_url[:60]}..." if img_url else "📸 डिफ़ॉल्ट इमेज का उपयोग होगा")
+    print(f"📸 असली रियल फोटो मिली: {img_url[:65]}...")
     print(f"🇮🇳 Hindi Headline: {hi_title}")
     
     return {
@@ -306,7 +340,6 @@ def create_reel_video(news):
         html_content = f.read()
         
     html_content = html_content.replace("यहाँ न्यूज़ की बड़ी हेडलाइन आएगी", news['title'])
-    html_content = html_content.replace("यहाँ_शॉर्ट_समरी_आएगी", news['summary'])
     
     photo_url = news.get('img_url') or "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200"
     html_content = html_content.replace("यहाँ_इमेज_आएगी", photo_url)
@@ -441,16 +474,24 @@ def main():
         print("\n===============================")
         print("🎬 15 MIN REEL POST TRIGGERED")
         print("===============================")
-        video_entry = candidates[0]
-        used_links.add(video_entry.link)
-        news_item = prepare_news_item(video_entry)
-        
-        video_path = create_reel_video(news_item)
-        if post_reel_to_facebook(video_path, news_item):
-            save_posted_news(news_item['link'])
-            state["last_video_time"] = int(now)
-            save_bot_state(state)
-            print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+        news_item = None
+        for cand in candidates:
+            if cand.link not in used_links:
+                item = prepare_news_item(cand)
+                if item:
+                    news_item = item
+                    used_links.add(cand.link)
+                    break
+                    
+        if news_item:
+            video_path = create_reel_video(news_item)
+            if post_reel_to_facebook(video_path, news_item):
+                save_posted_news(news_item['link'])
+                state["last_video_time"] = int(now)
+                save_bot_state(state)
+                print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+        else:
+            print("🤷‍♂️ रील के लिए कोई वैध असली-फोटो वाली खबर नहीं मिली।")
             
     # 2. 🎨 अगर 30 मिनट हो गए हैं -> Image (Photo Post) पोस्ट करें
     if should_post_image:
@@ -458,24 +499,27 @@ def main():
         print("🎨 30 MIN PHOTO POST TRIGGERED")
         print("===============================")
         
-        # अगर वीडियो अभी-अभी पोस्ट हुआ है तो अगली ताज़ा खबर लें
-        image_candidates = [c for c in candidates if c.link not in used_links]
-        if not image_candidates:
-            print("🤷‍♂️ फोटो के लिए नई न्यूज़ नहीं मिली।")
-            return
+        if should_post_video and news_item:
+            time.sleep(5)  # 5 सेकंड का अंतर
             
-        if should_post_video:
-            time.sleep(5)  # 5 सेकंड का अंतर ताकि दोनों पोस्ट एक ही सेकंड में न क्लैश हों
-            
-        image_entry = image_candidates[0]
-        news_item = prepare_news_item(image_entry)
-        
-        img_path = create_image_post(news_item)
-        if post_photo_to_facebook(img_path, news_item):
-            save_posted_news(news_item['link'])
-            state["last_image_time"] = int(now)
-            save_bot_state(state)
-            print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
+        news_item = None
+        for cand in candidates:
+            if cand.link not in used_links:
+                item = prepare_news_item(cand)
+                if item:
+                    news_item = item
+                    used_links.add(cand.link)
+                    break
+                    
+        if news_item:
+            img_path = create_image_post(news_item)
+            if post_photo_to_facebook(img_path, news_item):
+                save_posted_news(news_item['link'])
+                state["last_image_time"] = int(now)
+                save_bot_state(state)
+                print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
+        else:
+            print("🤷‍♂️ फोटो पोस्ट के लिए कोई वैध असली-फोटो वाली खबर नहीं मिली।")
 
 if __name__ == "__main__":
     main()
