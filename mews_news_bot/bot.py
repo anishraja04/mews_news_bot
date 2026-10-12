@@ -313,13 +313,113 @@ def build_anchor_script(news):
     script = f"म्यूज़ न्यूज़ पर बड़ी खबर। {title}। {context}"
     return script
 
+def generate_google_tts(text, audio_path, speed=1.35):
+    """Google Translate TTS बैकअप इंजन (क्लाउड/GitHub Actions 403 ब्लॉक से सुरक्षित)"""
+    import urllib.parse
+    
+    delimiters = ['।', '.', '!', '?', ',', ';', '\n']
+    temp_text = text
+    for d in delimiters:
+        temp_text = temp_text.replace(d, '|' + d + '|')
+        
+    raw_pieces = [p.strip() for p in temp_text.split('|') if p.strip()]
+    chunks = []
+    current = ""
+    for piece in raw_pieces:
+        if len(current) + len(piece) + 1 <= 80:
+            current = (current + " " + piece).strip()
+        else:
+            if current:
+                chunks.append(current)
+            if len(piece) > 80:
+                words = piece.split()
+                w_curr = ""
+                for w in words:
+                    if len(w_curr) + len(w) + 1 <= 80:
+                        w_curr = (w_curr + " " + w).strip()
+                    else:
+                        if w_curr:
+                            chunks.append(w_curr)
+                        w_curr = w
+                if w_curr:
+                    chunks.append(w_curr)
+                current = ""
+            else:
+                current = piece
+    if current:
+        chunks.append(current)
+        
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    combined_audio = bytearray()
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
+        params = {
+            'ie': 'UTF-8',
+            'q': chunk,
+            'tl': 'hi',
+            'client': 'tw-ob'
+        }
+        url = f"https://translate.google.com/translate_tts?{urllib.parse.urlencode(params)}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200 and len(resp.content) > 100:
+                combined_audio.extend(resp.content)
+        except Exception as e:
+            print(f"⚠️ Google TTS chunk चेतावनी: {e}")
+            
+    if not combined_audio:
+        raise RuntimeError("Google TTS से कोई ऑडियो प्राप्त नहीं हुआ")
+        
+    temp_raw = audio_path + ".raw.mp3"
+    with open(temp_raw, "wb") as f:
+        f.write(combined_audio)
+        
+    cmd = [
+        'ffmpeg', '-y',
+        '-i', temp_raw,
+        '-filter:a', f'atempo={speed}',
+        '-vn',
+        audio_path
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.path.exists(temp_raw):
+        try:
+            os.remove(temp_raw)
+        except Exception:
+            pass
+    return True
+
 def generate_voiceover(text, audio_path):
-    import edge_tts
-    async def _speak():
-        # hi-IN-MadhurNeural: 1.5x फास्ट और एनर्जेटिक स्पीड
-        communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+45%")
-        await communicate.save(audio_path)
-    asyncio.run(_speak())
+    """Dual-Engine TTS: पहले Edge-TTS, अगर 403 ब्लॉक या नेटवर्क एरर आए तो तुरंत Google TTS बैकअप"""
+    # 1. Edge-TTS आज़माएँ (तेज और रियलिस्टिक Madhur Neural)
+    try:
+        import edge_tts
+        async def _speak():
+            communicate = edge_tts.Communicate(text, "hi-IN-MadhurNeural", rate="+45%")
+            await asyncio.wait_for(communicate.save(audio_path), timeout=25.0)
+            
+        asyncio.run(_speak())
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 1000:
+            print("✅ Edge-TTS वॉइसओवर सफलतापूर्वक तैयार हुआ!")
+            return True
+    except Exception as e:
+        print(f"⚠️ Edge-TTS में एरर (संभवतः GitHub Actions/Azure IP 403 ब्लॉक): {e}")
+        print("🔄 बैकअप Google TTS इंजन पर स्विच कर रहा हूँ...")
+        
+    # 2. Google TTS बैकअप आज़माएँ
+    try:
+        generate_google_tts(text, audio_path, speed=1.35)
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 1000:
+            print("✅ Google TTS बैकअप वॉइसओवर सफलतापूर्वक तैयार हुआ!")
+            return True
+    except Exception as e2:
+        print(f"❌ Google TTS बैकअप भी विफल रहा: {e2}")
+        
+    return False
 
 def get_audio_duration(audio_path):
     try:
@@ -331,56 +431,63 @@ def get_audio_duration(audio_path):
 
 def create_reel_video(news):
     print("🎬 [Reel Post] 9:16 वर्टिकल रील, रियल फोटो मोशन और 1.5x AI वॉइसओवर बना रहा हूँ...")
-    html_file = os.path.join(os.path.dirname(__file__), "template_reel.html")
-    frame_img_file = os.path.join(os.path.dirname(__file__), "reel_frame.png")
-    audio_file = os.path.join(os.path.dirname(__file__), "reel_voice.mp3")
-    video_file = os.path.join(os.path.dirname(__file__), "latest_reel.mp4")
-    
-    with open(html_file, "r", encoding="utf-8") as f:
-        html_content = f.read()
-        
-    html_content = html_content.replace("यहाँ न्यूज़ की बड़ी हेडलाइन आएगी", news['title'])
-    
-    photo_url = news.get('img_url') or "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200"
-    html_content = html_content.replace("यहाँ_इमेज_आएगी", photo_url)
-        
-    # 1. 9:16 रील फ्रेम कैप्चर करना (720x1280)
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 720, "height": 1280})
-        page.set_content(html_content)
-        page.screenshot(path=frame_img_file)
-        browser.close()
-        
-    # 2. पूरा न्यूज़ एंकर स्क्रिप्ट और 1.5x फास्ट वॉइसओवर
-    voice_script = build_anchor_script(news)
-    print(f"🎙️ AI न्यूज़ एंकर वॉइसओवर (1.5x स्पीड): '{voice_script[:75]}...'")
-    generate_voiceover(voice_script, audio_file)
-    
-    # 3. FFmpeg से स्मूथ मोशन/ज़ूम (Ken Burns Real Camera Push) रेंडर करना
-    audio_dur = get_audio_duration(audio_file)
-    total_frames = int(audio_dur * 25) + 25
-    print(f"⚡ FFmpeg से Cinematic Motion HD Reel ({audio_dur:.1f}s) तैयार कर रहा हूँ...")
-    
-    cmd = [
-        'ffmpeg', '-y',
-        '-loop', '1',
-        '-i', frame_img_file,
-        '-i', audio_file,
-        '-filter_complex', f"zoompan=z='min(zoom+0.0006,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=720x1280:fps=25",
-        '-c:v', 'libx264', '-preset', 'veryfast',
-        '-c:a', 'aac', '-b:a', '192k',
-        '-pix_fmt', 'yuv420p',
-        '-shortest',
-        '-movflags', '+faststart',
-        video_file
-    ]
     try:
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"✅ रियल रील वीडियो तैयार है: {video_file} ({os.path.getsize(video_file)} bytes)")
-        return video_file
+        html_file = os.path.join(os.path.dirname(__file__), "template_reel.html")
+        frame_img_file = os.path.join(os.path.dirname(__file__), "reel_frame.png")
+        audio_file = os.path.join(os.path.dirname(__file__), "reel_voice.mp3")
+        video_file = os.path.join(os.path.dirname(__file__), "latest_reel.mp4")
+        
+        with open(html_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+            
+        html_content = html_content.replace("यहाँ न्यूज़ की बड़ी हेडलाइन आएगी", news['title'])
+        
+        photo_url = news.get('img_url') or "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1200"
+        html_content = html_content.replace("यहाँ_इमेज_आएगी", photo_url)
+            
+        # 1. 9:16 रील फ्रेम कैप्चर करना (720x1280)
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page(viewport={"width": 720, "height": 1280})
+            page.set_content(html_content)
+            page.screenshot(path=frame_img_file)
+            browser.close()
+            
+        # 2. पूरा न्यूज़ एंकर स्क्रिप्ट और 1.5x फास्ट वॉइसओवर
+        voice_script = build_anchor_script(news)
+        print(f"🎙️ AI न्यूज़ एंकर वॉइसओवर (1.5x स्पीड): '{voice_script[:75]}...'")
+        ok = generate_voiceover(voice_script, audio_file)
+        if not ok or not os.path.exists(audio_file) or os.path.getsize(audio_file) < 500:
+            print("⚠️ वॉइसओवर फ़ाइल तैयार नहीं हो सकी!")
+            return None
+        
+        # 3. FFmpeg से स्मूथ मोशन/ज़ूम (Ken Burns Real Camera Push) रेंडर करना
+        audio_dur = get_audio_duration(audio_file)
+        total_frames = int(audio_dur * 25) + 25
+        print(f"⚡ FFmpeg से Cinematic Motion HD Reel ({audio_dur:.1f}s) तैयार कर रहा हूँ...")
+        
+        cmd = [
+            'ffmpeg', '-y',
+            '-loop', '1',
+            '-i', frame_img_file,
+            '-i', audio_file,
+            '-filter_complex', f"zoompan=z='min(zoom+0.0006,1.10)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s=720x1280:fps=25",
+            '-c:v', 'libx264', '-preset', 'veryfast',
+            '-c:a', 'aac', '-b:a', '192k',
+            '-pix_fmt', 'yuv420p',
+            '-shortest',
+            '-movflags', '+faststart',
+            video_file
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0 and os.path.exists(video_file) and os.path.getsize(video_file) > 1000:
+            print(f"✅ रियल रील वीडियो तैयार है: {video_file} ({os.path.getsize(video_file)} bytes)")
+            return video_file
+        else:
+            print(f"❌ FFmpeg रेंडर विफल रहा: {res.stderr[-300:] if res.stderr else 'अज्ञात एरर'}")
+            return None
     except Exception as e:
-        print(f"❌ FFmpeg रील रेंडर करने में एरर आया: {e}")
+        print(f"❌ create_reel_video में एरर आया: {e}")
         return None
 
 def build_full_caption(news):
@@ -488,14 +595,17 @@ def main():
                     break
                     
         if news_item:
-            video_path = create_reel_video(news_item)
-            if video_path and post_reel_to_facebook(video_path, news_item):
-                save_posted_news(news_item['link'])
-                state["last_video_time"] = int(now)
-                save_bot_state(state)
-                print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
-            elif not video_path:
-                print("⚠️ रील वीडियो तैयार नहीं हो सका, अगली बार पुनः प्रयास करेंगे।")
+            try:
+                video_path = create_reel_video(news_item)
+                if video_path and post_reel_to_facebook(video_path, news_item):
+                    save_posted_news(news_item['link'])
+                    state["last_video_time"] = int(now)
+                    save_bot_state(state)
+                    print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+                elif not video_path:
+                    print("⚠️ रील वीडियो तैयार नहीं हो सका, अगली बार पुनः प्रयास करेंगे।")
+            except Exception as e:
+                print(f"❌ रील पोस्ट प्रोसेस में त्रुटि: {e}")
         else:
             print("🤷‍♂️ रील के लिए कोई वैध असली-फोटो वाली खबर नहीं मिली।")
             
@@ -518,14 +628,24 @@ def main():
                     break
                     
         if news_item:
-            img_path = create_image_post(news_item)
-            if post_photo_to_facebook(img_path, news_item):
-                save_posted_news(news_item['link'])
-                state["last_image_time"] = int(now)
-                save_bot_state(state)
-                print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
+            try:
+                img_path = create_image_post(news_item)
+                if post_photo_to_facebook(img_path, news_item):
+                    save_posted_news(news_item['link'])
+                    state["last_image_time"] = int(now)
+                    save_bot_state(state)
+                    print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
+            except Exception as e:
+                print(f"❌ फोटो पोस्ट प्रोसेस में त्रुटि: {e}")
         else:
             print("🤷‍♂️ फोटो पोस्ट के लिए कोई वैध असली-फोटो वाली खबर नहीं मिली।")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        print(f"⚠️ मुख्य प्रोग्राम में अप्रत्याशित अपवाद: {exc}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(0)
+
