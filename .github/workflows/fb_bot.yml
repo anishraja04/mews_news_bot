@@ -45,5 +45,7 @@ jobs:
           git config --global user.email "bot@mewsnews.local"
           git add mews_news_bot/posted_news.txt mews_news_bot/bot_state.json
           git commit -m "Auto-updated posted news record and bot state" || echo "No new posts to commit"
+          git checkout -- . || true
+          git clean -fd || true
           git pull --rebase origin master || true
-          git push origin main || git push origin master || true
+          git push origin master || true
