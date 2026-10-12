@@ -602,6 +602,15 @@ def main():
                     state["last_video_time"] = int(now)
                     save_bot_state(state)
                     print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+                    
+                    # 🚀 रील अपलोड होते ही अपने आप 50 से 100 रैंडम व्यूज इनिशियलाइज़ करना
+                    try:
+                        from view_booster import auto_boost_views
+                        views_target = random.randint(50, 100)
+                        print(f"\n🚀 [Auto View Booster] रील अपलोड हो गई! अब अपने आप {views_target} व्यूज इनिशियलाइज़ किए जा रहे हैं...")
+                        auto_boost_views(min_views=views_target, max_views=views_target, batch_size=4)
+                    except Exception as ve:
+                        print(f"⚠️ View booster warning: {ve}")
                 elif not video_path:
                     print("⚠️ रील वीडियो तैयार नहीं हो सका, अगली बार पुनः प्रयास करेंगे।")
             except Exception as e:
