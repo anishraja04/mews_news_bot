@@ -7,6 +7,11 @@ on:
   repository_dispatch:
     types: [run-bot] # cron-job.org trigger
 
+# दो जॉब्स एक साथ नहीं चलेंगे (Duplicate रील रोकने के लिए)
+concurrency:
+  group: fb-bot-group
+  cancel-in-progress: false
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest

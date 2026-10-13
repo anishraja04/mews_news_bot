@@ -49,14 +49,47 @@ STATE_FILE = os.path.join(os.path.dirname(__file__), "bot_state.json")
 # ==========================================
 
 def load_posted_news():
+    posted = set()
     if os.path.exists(POSTED_FILE):
         with open(POSTED_FILE, "r", encoding="utf-8") as f:
-            return set(f.read().splitlines())
-    return set()
+            posted = set(line.strip() for line in f if line.strip())
+    
+    # Facebook API se bhi pichle 15 videos/posts verify karein taaki duplicate na ho sake
+    try:
+        url = f"https://graph.facebook.com/v18.0/{FB_PAGE_ID}/videos?fields=description&limit=15&access_token={FB_TOKEN}"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            for item in r.json().get('data', []):
+                desc = item.get('description', '')
+                for line in desc.splitlines():
+                    line = line.strip()
+                    if line.startswith('http://') or line.startswith('https://'):
+                        posted.add(line)
+    except Exception:
+        pass
+    return posted
 
 def save_posted_news(link):
     with open(POSTED_FILE, "a", encoding="utf-8") as f:
         f.write(link + "\n")
+
+def commit_and_push_state():
+    """पोस्ट होते ही तुरंत गिटहब पर कमिट और पुश करें ताकि कोई दूसरा रन उसी खबर को दोबारा न उठाए"""
+    try:
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cmds = [
+            f'git config --global user.name "Mews News Bot"',
+            f'git config --global user.email "bot@mewsnews.local"',
+            f'git -C "{repo_dir}" add mews_news_bot/posted_news.txt mews_news_bot/bot_state.json',
+            f'git -C "{repo_dir}" commit -m "Auto-save state after upload" || true',
+            f'git -C "{repo_dir}" pull --rebase origin master || true',
+            f'git -C "{repo_dir}" push origin master || true'
+        ]
+        for cmd in cmds:
+            subprocess.run(cmd, shell=True, capture_output=True, timeout=15)
+        print("💾 गिटहब पर पोस्टेड स्टेट तुरंत सिंक हो गया!")
+    except Exception as e:
+        print(f"⚠️ गिट सिंक सूचना: {e}")
 
 def load_bot_state():
     if os.path.exists(STATE_FILE):
@@ -602,6 +635,7 @@ def main():
                     state["last_video_time"] = int(now)
                     save_bot_state(state)
                     print("🎉 REEL सफलतापूर्वक पोस्ट हो गई!")
+                    commit_and_push_state()
                     
                     # 🚀 रील अपलोड होते ही अपने आप 50 से 100 रैंडम व्यूज इनिशियलाइज़ करना
                     try:
@@ -644,6 +678,7 @@ def main():
                     state["last_image_time"] = int(now)
                     save_bot_state(state)
                     print("🎉 PHOTO पोस्ट सफलतापूर्वक हो गई!")
+                    commit_and_push_state()
             except Exception as e:
                 print(f"❌ फोटो पोस्ट प्रोसेस में त्रुटि: {e}")
         else:
